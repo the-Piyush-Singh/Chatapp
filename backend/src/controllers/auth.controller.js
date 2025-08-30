@@ -1,6 +1,7 @@
 import {generateToken} from "../lib/utils.js";
 import User from "../models/user.model.js";
 import bcrypt from "bcryptjs"
+import jwt from "jsonwebtoken";
 
 
 export const Signup= async (req,res)=>{
@@ -54,39 +55,44 @@ export const Signup= async (req,res)=>{
     }
 };
 
-export const loginup= async (req,res)=>{
-    
-  const {email,password}=req.body;
-  try{
-        const user=await User.findOne({email});
+export const loginup = async (req, res) => {
+  const { email, password } = req.body;
 
-        if(!user)
-        {
-            return res.status(400).json({message:"Invalid credentials"});
-        }
+  try {
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(400).json({ message: "Invalid credentials" });
+    }
 
-        const isPasswordCorrect=await bcrypt.compare(password,user.password);
+    const isPasswordCorrect = await bcrypt.compare(password, user.password);
+    if (!isPasswordCorrect) {
+      return res.status(400).json({ message: "Invalid credentials" });
+    }
 
-         if(!isPasswordCorrect){
-             return res.status(400).json({message:"Invalid credentials"});
-         }
+    // Generate JWT
+    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, {
+      expiresIn: "7d",
+    });
 
-          generateToken(user._id,res);
+    // Set cookie
+    res.cookie("jwt", token, {
+      httpOnly: true,       // JS cannot access the cookie
+      secure: true,         // required for HTTPS
+      sameSite: "none",     // required for cross-origin cookies
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    });
 
-          res.status(200).json({
-               
-               _id:user._id,
-               fullName:user.fullName,
-               email:user.email,
-               profilePic:user.profilePic,
-          });
+    // Send user info
+    res.status(200).json({
+      _id: user._id,
+      fullName: user.fullName,
+      email: user.email,
+      profilePic: user.profilePic,
+    });
+  } catch (error) {
+    console.log("Error in login controller", error.message);
+    res.status(500).json({ message: "Internal server error" });
   }
-  catch(error)
-  {
-     console.log("Error in login controller",error.message);
-     res.status(500).json({message:"Internal server Error"});
-  }
-
 };
 
 export const logout=(req,res)=>{
