@@ -3,7 +3,6 @@ import { axiosInstance } from "../lib/axios.js";
 import toast from "react-hot-toast";
 import { io } from "socket.io-client";
 
-// Directly use deployed backend URL
 const BASE_URL = "https://chatapp-1-juyt.onrender.com";
 
 export const useAuthStore = create((set, get) => ({
@@ -18,14 +17,7 @@ export const useAuthStore = create((set, get) => ({
   // --- Check authentication ---
   checkAuth: async () => {
     try {
-      const token = localStorage.getItem("token");
-      if (!token) throw new Error("No token found");
-
-      const res = await axiosInstance.get("/auth/check", {
-        headers: { Authorization: `Bearer ${token}` },
-        withCredentials: true,
-      });
-
+      const res = await axiosInstance.get("/auth/check"); // cookie sent automatically
       set({ authUser: res.data });
       get().connectSocket();
     } catch (error) {
@@ -41,8 +33,7 @@ export const useAuthStore = create((set, get) => ({
     set({ isSigningUp: true });
     try {
       const res = await axiosInstance.post("/auth/signup", data);
-      set({ authUser: res.data.user }); // adjust if your API returns user object
-      localStorage.setItem("token", res.data.token); // store JWT
+      set({ authUser: res.data.user }); // backend should send user object
       toast.success("Account created successfully");
       get().connectSocket();
     } catch (error) {
@@ -58,7 +49,6 @@ export const useAuthStore = create((set, get) => ({
     try {
       const res = await axiosInstance.post("/auth/login", data);
       set({ authUser: res.data.user });
-      localStorage.setItem("token", res.data.token); // store JWT
       toast.success("Logged in successfully");
       get().connectSocket();
     } catch (error) {
@@ -71,9 +61,8 @@ export const useAuthStore = create((set, get) => ({
   // --- Logout ---
   logout: async () => {
     try {
-      await axiosInstance.post("/auth/logout", {}, { withCredentials: true });
+      await axiosInstance.post("/auth/logout"); // cookie removed by backend
       set({ authUser: null });
-      localStorage.removeItem("token");
       toast.success("Logged out successfully");
       get().disconnectSocket();
     } catch (error) {
@@ -85,11 +74,7 @@ export const useAuthStore = create((set, get) => ({
   updateProfile: async (data) => {
     set({ isUpdatingProfile: true });
     try {
-      const token = localStorage.getItem("token");
-      const res = await axiosInstance.put("/auth/update-profile", data, {
-        headers: { Authorization: `Bearer ${token}` },
-        withCredentials: true,
-      });
+      const res = await axiosInstance.put("/auth/update-profile", data);
       set({ authUser: res.data });
       toast.success("Profile updated successfully");
     } catch (error) {
@@ -107,14 +92,13 @@ export const useAuthStore = create((set, get) => ({
 
     const socket = io(BASE_URL, {
       query: { userId: authUser._id },
-      withCredentials: true,
+      withCredentials: true, // send cookies
     });
+
     set({ socket });
 
     socket.on("connect", () => console.log("Socket connected:", socket.id));
-    socket.on("getOnlineUsers", (userIds) => {
-      set({ onlineUsers: userIds });
-    });
+    socket.on("getOnlineUsers", (userIds) => set({ onlineUsers: userIds }));
   },
 
   disconnectSocket: () => {
